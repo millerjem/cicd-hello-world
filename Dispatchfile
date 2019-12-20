@@ -4,6 +4,11 @@ resource "src-git": {
   param revision: "$(context.git.commit)"
 }
 
+resource "gitops-git": {
+  type: "git"
+  param url: "https://github.com/millerjem/cicd-hello-world-gitops"
+}
+
 task "test": {
   inputs: ["src-git"]
 
@@ -13,6 +18,21 @@ task "test": {
       image: "golang:1.13.0-buster"
       command: [ "go", "test", "./..." ]
       workingDir: "/workspace/src-git"
+    }
+  ]
+}
+
+task "deploy": {
+  inputs: ["docker-image", "gitops-git"]
+  steps: [
+    {
+      name: "update-gitops-repo"
+      image: "mesosphere/update-gitops-repo:v1.0"
+      workingDir: "/workspace/gitops-git"
+      args: [
+        "-git-revision=$(context.git.commit)",
+        "-substitute=imageName=millerjem/hello-world@$(inputs.resources.docker-image.digest)"
+      ]
     }
   ]
 }
@@ -30,5 +50,13 @@ actions: [
       chatops: ["test"]
     }
   }
+]
+
+actions: [
+  {
+    tasks: ["build", "deploy"]
+    on push branches: ["master"]
+  },
+  ...
 ]
 
